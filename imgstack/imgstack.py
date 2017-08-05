@@ -419,6 +419,8 @@ def main():
         "number of iterations. 0 simply computes the average image (default=1)"
     help_sigma =\
         "maximum deviation allowed. "\
+        "a pixel value off from the average by this value times the standard "\
+        "deviation is excluded. "\
         "values 1.0, 2.0, 3.0 respectively exclude approximately "\
         "32 percent, 5 percent, and 0.3 percent of points for a normal "\
         "distribution of data (default=2.5)"

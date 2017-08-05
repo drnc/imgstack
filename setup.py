@@ -4,6 +4,7 @@ setup(
     name='imgstack',
     version='1.0',
     description='Stack multiple TIFF files, producing a sigma clipped average image',
+    url='https://github.com/drnc/imgstack',
     author='Guillaume Duranceau',
     author_email='g2lm@drnc.net',
     license='Apache License 2.0',
