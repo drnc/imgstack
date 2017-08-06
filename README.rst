@@ -6,7 +6,8 @@ Copyright 2017, Guillaume Duranceau
 
 https://github.com/drnc/imgstack
 
-*imgstack* is a **TIFF file stacker**.
+*imgstack* is a **TIFF file stacker**,
+delivered as a **Python** script.
 It stacks aligned images of the same scene,
 producing a **sigma clipped average image**.
 
@@ -42,19 +43,21 @@ with the same type than the input images
 (if input images are 16 bits TIFF files,
 output image is a 16 bits TIFF file).
 
-*imgstack* can optionnaly compress the output TIFF file.
+*imgstack* can optionally compress the output TIFF file.
 
 *imgstack* supports setting the sigma factor value.
 Reasonable values range from 1.0 to 3.0.
 Default is 2.5.
 Assuming a `normal distribution`_ of data,
-the following sigma values would exclude approximately:
+the following sigma values excludes approximately:
 
 * 32% of points for sigma=1.0
+* 13% of points for sigma=1.5
 * 5% of points for sigma=2.0
+* 1% of points for sigma=2.5
 * 0.3% of points for sigma=3.0
 
-The algorithm can be applied iteratively, several times.
+The algorithm can be applied iteratively.
 *imgstack* allows to set the number of sigma clipping iterations to run.
 Note that *imgstack* will stop by itself
 if the number of iterations specified is large and
@@ -65,13 +68,13 @@ Stacking images is a CPU intensive and memory consuming operation,
 especially when processing many large images.
 To **limit memory consumption**,
 *imgstack* **only loads partial images in memory**
-instead of the full images content
-(use up to 1 GiB by default).
+instead of the images full content
+(using up to 1 GiB by default).
 The stacking process also requires high amount of memory.
 Again, to limit memory usage,
 *imgstack* **stacks images by group of limited number of rows** (100 by default).
 Once partial content of input images have been fully processed,
-it loads a following part of the images,
+it loads a following part of the images
 and continues the stacking process, until full completion.
 The default values
 (1 GiB memory limit for input images,
