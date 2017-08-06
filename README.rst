@@ -85,7 +85,7 @@ can be changed to accomodate the user environment
 How to run
 ==========
 
-imgstack.py is a Python 3 script,
+imgstack.py_ is a Python 3 script,
 depending on numpy_ and tifffile_ packages.
 
 To run it and display the usage and options::
@@ -96,3 +96,4 @@ To run it and display the usage and options::
 .. _normal distribution: https://en.wikipedia.org/wiki/Normal_distribution
 .. _numpy: http://www.numpy.org/
 .. _tifffile: http://www.lfd.uci.edu/~gohlke/code/tifffile.py.html
+.. _imgstack.py: https://github.com/drnc/imgstack/blob/master/imgstack/imgstack.py
