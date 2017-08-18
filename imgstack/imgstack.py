@@ -6,9 +6,9 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,152 +30,6 @@ import tifffile
 import os.path
 
 logger = logging.getLogger('imgstack')
-
-class TiffFile:
-    """Load and cache TIFF file data.
-    
-    This object caches the image data for fast access, and manages partial load
-    of the image.
-
-    Image data is presented as a numpy array.
-
-    Example
-    -------
-        image = TiffFile('file')
-        image.shape  # shape of the image (as in numpy array)
-        image.nbytes # in-memory size of the image (as in numpy array)
-        image.dtype  # numpy type of image points
-        image.cached # number of rows cached
-
-        image[1]    # get the second row of the image
-        image[:]    # get all image data
-        image[0:2]  # get the first 2 rows
-        image[3:-1] # get row 3 (numbered from 0) to the second last one
-    """
-
-    def __init__(self, filename, cache_size):
-        """Create the file object and (partially) load the image.
-        
-        Parameters
-        ----------
-        filename : str
-            TIFF file name.
-        cache_size : int
-            Amount of memory (in bytes) available to cache image data.
-        """
-        self.shape = None
-        self.nbytes = None
-        self.dtype = None
-        self.cached = 0
-        self._filename = filename
-
-        data = self._load(True)
-        if self.shape == None:
-            return
-
-        # the full image can be cached
-        if cache_size >= data.nbytes:
-            self._cache = data
-            self.cached = len(self)
-            self._cache_rbegin = 0
-            self._cache_rlast = len(self)
-
-        # let's cache the first rows
-        else:
-            self.cached = int(len(self) * cache_size / data.nbytes)
-            if self.cached > 0:
-                self._cache = data[:self.cached]
-            self._cache_rbegin = 0
-            self._cache_rlast = self.cached
-
-    def __len__(self):
-        """Get the number of rows in the image."""
-        if self.shape:
-            return self.shape[0]
-        return 0
-
-    def __getitem__(self, key):
-        """Get image data for a single row or a slice of rows.
-
-        For a 2 dimension image (standard case), keeps only RGB channels.
-
-        Parameters
-        ----------
-        key : int or slice
-            Index or slice of indices of the row(s) to retrieve.
-
-        Returns
-        -------
-        data : numpy.ndarray
-            Image data.
-        """
-        if self.shape == None:
-            return numpy.array([], numpy.uint16)
-
-        if isinstance(key, int):
-
-            if key < 0:
-                key += len(self)
-            if (key < 0) or (key >= len(self)):
-                raise IndexError("list index out of range")
-
-            # get data from cache if possible
-            if key >= self._cache_rbegin and key < self._cache_rlast:
-                return self._cache[key - self._cache_rbegin]
-
-            # clear the cache and load data from file
-            self._cache = None
-            data = self._load(False)
-
-            # image couldn't be loaded
-            if self.shape == None:
-                return numpy.array([], numpy.uint16)
-
-            # cache from row key
-            self._cache_rbegin = key
-            self._cache_rlast = min(key + self.cached, len(self))
-            self._cache = data[self._cache_rbegin:self._cache_rlast]
-
-            return data[key]
-
-        elif isinstance(key, slice):
-            return [self[i] for i in range(*key.indices(len(self)))]
-
-        else:
-            raise TypeError('TiffFile indices must be integers or slices')
-
-    # load full image
-    def _load(self, first_time):
-        if first_time:
-            logger.info("loading image [{}]".format(self._filename));
-        else:
-            logger.info("reloading image [{}]".format(self._filename));
-
-        try:
-            data = tifffile.imread(self._filename)
-
-        except (OSError, IOError, ValueError) as err:
-            logger.error(
-                "couldn't load image [{}]: {}".format(self._filename, err))
-            self.shape = None
-            self.nbytes = None
-            self.dtype = None
-            return None
-
-        # 2 dimension image => keep RGB channels only
-        if data.ndim == 3 and data.shape[-1] >= 4:
-            if first_time:
-                logger.info(
-                    "image [{}] has more than 3 chanels (maybe RGBA). "\
-                    "keeping only the first 3 channels (RGB)".format(
-                    self._filename, data.shape[-1]))
-            data = numpy.delete(data, numpy.s_[3:], 2)
-
-        self.shape = data.shape
-        self.nbytes = data.nbytes
-        self.dtype = data.dtype
-
-        return data
 
 class ImageStacker:
     """Stack images with similar size, producing a sigma clipped average image.
@@ -269,7 +123,7 @@ class TiffStacker:
     image.
     """
 
-    def __init__(self, loop, sigma, cache_size, rows):
+    def __init__(self, loop, sigma, rows):
         """Create the stacker object.
 
         Parameters
@@ -279,14 +133,11 @@ class TiffStacker:
             clip more points. loop = 0 simply computes the average.
         sigma : float
             See ImageStacker.__init__ sigma parameter.
-        cache_size : int
-            Amount of memory (in bytes) used for caching image data.
         rows : int
             Number of rows stacked simultaneously.
         """
         self._loop = loop
         self._sigma = sigma
-        self._cache_size = cache_size
         self._rows = rows
         self._outdata = []
 
@@ -311,15 +162,14 @@ class TiffStacker:
         if len(inputfiles) < 2:
             return False;
 
-        cache_per_image = int(self._cache_size / len(inputfiles))
         shape = None
         dtype = None
 
         # load images one by one. interrupt in case of error
         images = []
         for inputfile in inputfiles:
-            image = TiffFile(inputfile, cache_per_image)
-            if not image.shape:
+            image = TiffStacker._load_tiff(inputfile)
+            if image is None:
                 return False
             if not shape:
                 shape = image.shape
@@ -349,8 +199,6 @@ class TiffStacker:
             inputdata = []
             for image in images:
                 data = image[rbegin:rend]
-                if not data:
-                    return False
                 inputdata.append(data)
 
             stacker = ImageStacker(inputdata, self._loop, self._sigma)
@@ -371,6 +219,24 @@ class TiffStacker:
 
         return TiffStacker._write_tiff(
             numpy.concatenate(self._outdata), outfile, compress, dtype)
+
+    @staticmethod
+    def _load_tiff(filename):
+        logger.info("loading image [{}]".format(filename));
+        try:
+            data = tifffile.imread(filename, memmap=True)
+        except (OSError, IOError, ValueError) as err:
+            logger.error("couldn't load image [{}]: {}".format(filename, err))
+            return None
+
+        # 2 dimension image => keep RGB channels only
+        if data.ndim == 3 and data.shape[-1] >= 4:
+            logger.info(
+                "image [{}] has more than 3 chanels (maybe RGBA). "\
+                "keeping only the first 3 channels (RGB)".format(
+                filename, data.shape[-1]))
+            data = numpy.delete(data, numpy.s_[3:], 2)
+        return data
 
     @staticmethod
     def _write_tiff(data, filename, compress, datatype):
@@ -414,7 +280,7 @@ def check_args(args):
 def main():
     help_description =\
         "Stack multiple TIFF files, producing a sigma clipped average image"
-        
+
     help_loop =\
         "number of iterations. 0 simply computes the average image (default=1)"
     help_sigma =\
@@ -429,9 +295,6 @@ def main():
         "(32 bits is floating point). (default=16)"
     help_compress =\
         "zlib compression level for output file (default=0)"
-    help_memory =\
-        "amount of memory (in MiB) used for caching image data "\
-        "(default=1024 MiB)"
     help_rows =\
         "number of rows stacked simultaneously. high values require more "\
         "memory (default=100)"
@@ -443,7 +306,6 @@ def main():
     parser.add_argument('-s', '--sigma', help=help_sigma, action='store', type=float, default=2.5)
     parser.add_argument('-c', '--compress', help=help_compress, action='store', type=int, default=0)
     parser.add_argument('-d', '--depth', help=help_depth, action='store', type=int, default=16)
-    parser.add_argument('-m', '--memory', help=help_memory, action='store', type=int, default=1024)
     parser.add_argument('-r', '--rows', help=help_rows, action='store', type=int, default=100)
     parser.add_argument('-q', '--quiet', help='mute message output on stdout', action='store_true')
     args = parser.parse_args()
@@ -454,8 +316,7 @@ def main():
     if not check_args(args):
         return 1
 
-    stacker = TiffStacker(
-        args.loop, args.sigma, args.memory * 1024**2, args.rows)
+    stacker = TiffStacker(args.loop, args.sigma, args.rows)
     if stacker.run(args.input, args.output, args.compress):
         return 0
     return 1

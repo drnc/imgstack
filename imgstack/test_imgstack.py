@@ -3,82 +3,15 @@ import logging
 import numpy
 import unittest
 import os
+import numpy
 
 def datafile(filename):
     return os.path.join('test_data', filename)
 
-class TestTiffFile(unittest.TestCase):
-
-    def test_load_failure(self):
-        image = imgstack.TiffFile('unexisting-file', 100)
-
-        self.assertFalse(image)
-        self.assertEqual(len(image), 0)
-        self.assertEqual(image.shape, None)
-        self.assertEqual(image.nbytes, None)
-        self.assertEqual(image.dtype, None)
-        self.assertFalse(image[0])
-
-    def test_1d_image(self):
-        # list of [cache size, expected number of cached rows]
-        for cache in ([0, 0], [2, 1], [5, 2], [10, 5], [20, 10], [42, 21], [100, 21]):
-            image = imgstack.TiffFile(datafile('long_1d.tif'), cache[0])
-
-            self.assertTrue(image)
-            self.assertEqual(len(image), 21)
-            self.assertEqual(image.shape, (21,))
-            self.assertEqual(image.nbytes, 42)
-            self.assertEqual(image.dtype, numpy.uint16)
-            self.assertEqual(image.cached, cache[1])
-
-            self.assertEqual(image[0], 0)
-            self.assertEqual(image[4], 4)
-            self.assertEqual(image[3:7], [3, 4, 5, 6])
-            self.assertEqual(image[:4], [0, 1, 2, 3])
-            self.assertEqual(image[8:4], [])
-            self.assertEqual(image[-2], [19])
-            self.assertEqual(image[-3:-1], [18, 19])
-            self.assertEqual(image[-3:], [18, 19, 20])
-            self.assertEqual(image[:], [x for x in range(0, 21)])
-
-            self.assertRaises(IndexError, image.__getitem__, -22)
-            self.assertRaises(IndexError, image.__getitem__, 22)
-            self.assertRaises(TypeError, image.__getitem__, 3.14)
-
-    def test_2d_image(self):
-        # list of [cache size, expected number of cached rows]
-        for cache in ([0, 0], [15, 0], [18, 1], [100, 2]):
-            image = imgstack.TiffFile(datafile('image_1.tif'), cache[0])
-
-            self.assertTrue(image)
-            self.assertEqual(len(image), 2)
-            self.assertEqual(image.shape, (2, 3, 3))
-            self.assertEqual(image.nbytes, 36)
-            self.assertEqual(image.dtype, numpy.uint16)
-            self.assertEqual(image.cached, cache[1])
-
-            self.assertEqual(image[0][0][0], 10)
-            self.assertEqual(image[1][1][1], 30)
-
-    def test_4d_float_image(self):
-        # list of [cache size, expected number of cached rows]
-        for cache in ([0, 0], [23, 0], [24, 1], [47, 1], [48, 2]):
-            image = imgstack.TiffFile(datafile('4d_float_1.tif'), cache[0])
-
-            self.assertTrue(image)
-            self.assertEqual(len(image), 2)
-            self.assertEqual(image.shape, (2, 2, 3))
-            self.assertEqual(image.nbytes, 48)
-            self.assertEqual(image.dtype, numpy.float32)
-            self.assertEqual(image.cached, cache[1])
-
-            self.assertEqual(image[0][0][0], 10)
-            self.assertEqual(image[1][1][2], 30)
-
 class TestImageStacker(unittest.TestCase):
 
     def test_1d_images(self):
-        images = [imgstack.TiffFile(datafile('1d_{}.tif'.format(i)), 1024)[:] for i in range(1, 10)]
+        images = [imgstack.TiffStacker._load_tiff(datafile('1d_{}.tif'.format(i))) for i in range(1, 10)]
 
         # loop = 0 => average
         stacker = imgstack.ImageStacker(images, 0, 1)
@@ -153,7 +86,7 @@ class TestImageStacker(unittest.TestCase):
         self.assertEqual(stacker.clipped_points(), 5)
 
     def test_2d_images(self):
-        images = [imgstack.TiffFile(datafile('image_{}.tif'.format(i)), 1024)[:] for i in range(1, 5)]
+        images = [imgstack.TiffStacker._load_tiff(datafile('image_{}.tif'.format(i))) for i in range(1, 5)]
 
         # loop = 0 => average
         stacker = imgstack.ImageStacker(images, 0, 1)
@@ -177,7 +110,7 @@ class TestImageStacker(unittest.TestCase):
         self.assertEqual(stacker.clipped_points(), 42)
 
     def test_4d_float_images(self):
-        images = [imgstack.TiffFile(datafile('4d_float_{}.tif'.format(i)), 1024)[:] for i in range(1, 4)]
+        images = [imgstack.TiffStacker._load_tiff(datafile('4d_float_{}.tif'.format(i))) for i in range(1, 4)]
 
         # loop = 1, sigma=1.5
         stacker = imgstack.ImageStacker(images, 1, 1.2)
@@ -190,47 +123,47 @@ class TestTiffStacker(unittest.TestCase):
 
     def test_errors(self):
         # no input file
-        stacker = imgstack.TiffStacker(1, 1, 1024, 10)
+        stacker = imgstack.TiffStacker(1, 1, 10)
         self.assertFalse(stacker.run([], datafile('out.tif')))
 
         # only 1 file input file
-        stacker = imgstack.TiffStacker(1, 1, 1024, 10)
+        stacker = imgstack.TiffStacker(1, 1, 10)
         self.assertFalse(stacker.run([datafile('long_1d.tif')], datafile('out.tif')))
 
         # input file doesn't exist
-        stacker = imgstack.TiffStacker(1, 1, 1024, 10)
+        stacker = imgstack.TiffStacker(1, 1, 10)
         self.assertFalse(stacker.run([datafile('long_1d.tif'), datafile('unexisting.tif')], datafile('out.tif')))
 
         # stacking files with different shapes
-        stacker = imgstack.TiffStacker(1, 1, 1024, 10)
+        stacker = imgstack.TiffStacker(1, 1, 10)
         self.assertFalse(stacker.run([datafile('1d_1.tif'), datafile('image_1.tif')], datafile('out.tif')))
 
         # stacking files with different types
-        stacker = imgstack.TiffStacker(1, 1, 1024, 10)
+        stacker = imgstack.TiffStacker(1, 1, 10)
         self.assertFalse(stacker.run([datafile('1d_1.tif'), datafile('uint8_1d.tif')], datafile('out.tif')))
 
     def test_2_files(self):
-        stacker = imgstack.TiffStacker(1, 1, 1024, 10)
+        stacker = imgstack.TiffStacker(1, 1, 10)
         self.assertTrue(stacker.run([datafile('1d_1.tif'), datafile('1d_2.tif')], datafile('out.tif')))
 
-        self.assertEqual(imgstack.TiffFile(datafile('out.tif'), 1024)[:], [9, 97, 997, 9997])
+        self.assertEqual(imgstack.TiffStacker._load_tiff(datafile('out.tif')).tolist(), [9, 97, 997, 9997])
         os.remove(datafile('out.tif'))
 
     def test_multiple_files(self):
-        stacker = imgstack.TiffStacker(2, 1, 18, 1)
+        stacker = imgstack.TiffStacker(2, 1, 1)
         self.assertTrue(stacker.run([datafile('image_{}.tif'.format(i)) for i in range(1, 5)], datafile('out.tif')))
 
-        outfile = imgstack.TiffFile(datafile('out.tif'), 1024)
+        outfile = imgstack.TiffStacker._load_tiff(datafile('out.tif'))
         self.assertEqual([outfile[i].tolist() for i in range (0, len(outfile))],
             [[[10, 100, 1000], [50, 502, 5003], [10012, 20014, 29976]], [[600, 500, 400], [19, 31, 41], [1, 0, 1]]])
         os.remove(datafile('out.tif'))
 
     def test_float32_compressed(self):
-        stacker = imgstack.TiffStacker(2, 1, 18, 1)
+        stacker = imgstack.TiffStacker(2, 1, 1)
         self.assertTrue(stacker.run(
             [datafile('4d_float_{}.tif'.format(i)) for i in range(1, 4)], datafile('out.tif'), 5))
 
-        outfile = imgstack.TiffFile(datafile('out.tif'), 1024)
+        outfile = imgstack.TiffStacker._load_tiff(datafile('out.tif'))
         self.assertEqual([outfile[i].tolist() for i in range (0, len(outfile))],
             [[[10.5, 102.5, 997.5], [49.5, 501, 4996]], [[10002.0, 19992.5, 30020.5], [10.0, 19.0, 30.5]]])
         os.remove(datafile('out.tif'))

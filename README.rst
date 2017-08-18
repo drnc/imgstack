@@ -67,20 +67,10 @@ in the last sigma clipping pass.
 Stacking images is a CPU intensive and memory consuming operation,
 especially when processing many large images.
 To **limit memory consumption**,
-*imgstack* **only loads partial images in memory**
-instead of the images full content
-(using up to 1 GiB by default).
-The stacking process also requires high amount of memory.
-Again, to limit memory usage,
-*imgstack* **stacks images by group of limited number of rows** (100 by default).
-Once partial content of input images have been fully processed,
-it loads a following part of the images
-and continues the stacking process, until full completion.
-The default values
-(1 GiB memory limit for input images,
-and stacking by groups of 100 rows)
-can be changed to accomodate the user environment
-(low memory constraints, many images to stack...)
+*imgstack* **stacks images by group of limited number of rows**
+(100 by default,
+but this can lowered
+to accomodate a user environment with low memory constraints).
 
 How to run
 ==========
