@@ -35,7 +35,7 @@ class ImageStacker:
     """Stack images with similar size, producing a sigma clipped average image.
     """
 
-    def __init__(self, data, loop, sigma):
+    def __init__(self, data, loop, sigma, alpha=True):
         """Create the stacker object.
 
         Parameters
@@ -49,6 +49,10 @@ class ImageStacker:
             A point with a value such as its difference from the average value
             of the same points in all images is greater than sigma times the
             standard deviation for those points will be clipped.
+        alpha : bool
+            True to consider the 4th channel of a 2D image data as an alpha
+            (transparency) channel. Transparent pixels are not taken into
+            account when computing the resulting stacked image.
         """
         self._loop = loop
         self._sigma = sigma
@@ -56,9 +60,15 @@ class ImageStacker:
         self._deviation = None # input data standard deviation, times sigma
         self._loops_run = 0 # number of loops actually run
         self._clipped = 0 # number of points clipped
+        self._masked = 0 # number of points masked initially
 
         self._data = numpy.ma.masked_array(
             numpy.stack(data, axis=0), numpy.ma.nomask)
+
+        if alpha and self._data.ndim == 4 and self._data.shape[-1] >= 4:
+            self._data.mask =\
+                numpy.repeat(numpy.logical_not(self._data[...,3]), 4)
+            self._masked = numpy.ma.count_masked(self._data)
 
     def run(self):
         """Compute the stacked image.
@@ -87,11 +97,13 @@ class ImageStacker:
                 # no point was clipped in this loop. no need for another one
                 break
 
-        return self._average
+        # replace None values in the average by 0. None values are possible if
+        # some points are transparent in all images
+        return numpy.where(self._average == None, 0, self._average)
 
     def clipped_points(self):
         """Return the number of points clipped"""
-        return self._clipped
+        return self._clipped - self._masked
 
     def loops_run(self):
         """Return the number of loops run.
@@ -123,7 +135,7 @@ class TiffStacker:
     image.
     """
 
-    def __init__(self, loop, sigma, rows):
+    def __init__(self, loop, sigma, rows, alpha = True):
         """Create the stacker object.
 
         Parameters
@@ -135,10 +147,14 @@ class TiffStacker:
             See ImageStacker.__init__ sigma parameter.
         rows : int
             Number of rows stacked simultaneously.
+        alpha : bool
+            True to consider the 4th channel of a 2D image data as an alpha
+            (transparency) channel.
         """
         self._loop = loop
         self._sigma = sigma
         self._rows = rows
+        self._alpha = alpha
         self._outdata = []
 
     def run(self, inputfiles, outfile, compress = 0):
@@ -201,7 +217,8 @@ class TiffStacker:
                 data = image[rbegin:rend]
                 inputdata.append(data)
 
-            stacker = ImageStacker(inputdata, self._loop, self._sigma)
+            stacker = ImageStacker(
+                inputdata, self._loop, self._sigma, self._alpha)
 
             logger.info(
                 "stacking images. rows {} to {}...".format(rbegin, rend - 1))
@@ -228,14 +245,6 @@ class TiffStacker:
         except (OSError, IOError, ValueError) as err:
             logger.error("couldn't load image [{}]: {}".format(filename, err))
             return None
-
-        # 2 dimension image => keep RGB channels only
-        if data.ndim == 3 and data.shape[-1] >= 4:
-            logger.info(
-                "image [{}] has more than 3 chanels (maybe RGBA). "\
-                "keeping only the first 3 channels (RGB)".format(
-                filename, data.shape[-1]))
-            data = numpy.delete(data, numpy.s_[3:], 2)
         return data
 
     @staticmethod
@@ -298,6 +307,9 @@ def main():
     help_rows =\
         "number of rows stacked simultaneously. high values require more "\
         "memory (default=100)"
+    help_no_alpha =\
+        "doesn't consider the 4th channel of 2D images as an alpha "\
+        "transparency layer"
 
     parser = argparse.ArgumentParser(description=help_description)
     parser.add_argument('-i', '--input', help='input files', action='store', required=True, nargs='+')
@@ -307,6 +319,7 @@ def main():
     parser.add_argument('-c', '--compress', help=help_compress, action='store', type=int, default=0)
     parser.add_argument('-d', '--depth', help=help_depth, action='store', type=int, default=16)
     parser.add_argument('-r', '--rows', help=help_rows, action='store', type=int, default=100)
+    parser.add_argument('-a', '--no-alpha', help=help_no_alpha, action='store_true')
     parser.add_argument('-q', '--quiet', help='mute message output on stdout', action='store_true')
     args = parser.parse_args()
 
@@ -316,7 +329,7 @@ def main():
     if not check_args(args):
         return 1
 
-    stacker = TiffStacker(args.loop, args.sigma, args.rows)
+    stacker = TiffStacker(args.loop, args.sigma, args.rows, not args.no_alpha)
     if stacker.run(args.input, args.output, args.compress):
         return 0
     return 1

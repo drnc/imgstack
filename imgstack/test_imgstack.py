@@ -3,7 +3,6 @@ import logging
 import numpy
 import unittest
 import os
-import numpy
 
 def datafile(filename):
     return os.path.join('test_data', filename)
@@ -109,15 +108,25 @@ class TestImageStacker(unittest.TestCase):
         self.assertEqual(stacker.loops_run(), 2)
         self.assertEqual(stacker.clipped_points(), 42)
 
+    def test_2d_with_alpha_images(self):
+        images = [imgstack.TiffStacker._load_tiff(datafile('image_alpha_{}.tif'.format(i))) for i in range(1, 5)]
+
+        # loop = 1, sigma=1.0
+        stacker = imgstack.ImageStacker(images, 1, 1)
+        self.assertEqual(stacker.run().astype(numpy.uint16).tolist(),
+            [[[10, 99, 999, 65535], [49, 500, 5001, 65535], [10012, 20015, 29952, 65535]], [[600, 500, 400, 65535], [16, 31, 41, 65535], [0, 0, 0, 0]]])
+        self.assertEqual(stacker.loops_run(), 1)
+        self.assertEqual(stacker.clipped_points(), 18)
+
     def test_4d_float_images(self):
         images = [imgstack.TiffStacker._load_tiff(datafile('4d_float_{}.tif'.format(i))) for i in range(1, 4)]
 
-        # loop = 1, sigma=1.5
-        stacker = imgstack.ImageStacker(images, 1, 1.2)
+        # loop = 1, sigma=1.2, alpha = False
+        stacker = imgstack.ImageStacker(images, 1, 1.2, False)
         self.assertEqual(stacker.run().astype(numpy.uint16).tolist(),
-            [[[10, 102, 997], [49, 501, 4996]], [[10002, 19992, 30020], [10, 19, 30]]])
+            [[[10, 102, 997, 8912], [49, 501, 4996, 62]], [[10002, 19992, 30020, 1040], [10, 19, 30, 499]]])
         self.assertEqual(stacker.loops_run(), 1)
-        self.assertEqual(stacker.clipped_points(), 13)
+        self.assertEqual(stacker.clipped_points(), 17)
 
 class TestTiffStacker(unittest.TestCase):
 
@@ -158,14 +167,23 @@ class TestTiffStacker(unittest.TestCase):
             [[[10, 100, 1000], [50, 502, 5003], [10012, 20014, 29976]], [[600, 500, 400], [19, 31, 41], [1, 0, 1]]])
         os.remove(datafile('out.tif'))
 
+    def test_multiple_files_with_alpha(self):
+        stacker = imgstack.TiffStacker(1, 1, 1)
+        self.assertTrue(stacker.run([datafile('image_alpha_{}.tif'.format(i)) for i in range(1, 5)], datafile('out.tif')))
+
+        outfile = imgstack.TiffStacker._load_tiff(datafile('out.tif'))
+        self.assertEqual([outfile[i].tolist() for i in range (0, len(outfile))],
+            [[[10, 99, 999, 65535], [49, 500, 5001, 65535], [10012, 20015, 29952, 65535]], [[600, 500, 400, 65535], [16, 31, 41, 65535], [0, 0, 0, 0]]])
+        os.remove(datafile('out.tif'))
+
     def test_float32_compressed(self):
-        stacker = imgstack.TiffStacker(2, 1, 1)
+        stacker = imgstack.TiffStacker(2, 1, 1, False)
         self.assertTrue(stacker.run(
             [datafile('4d_float_{}.tif'.format(i)) for i in range(1, 4)], datafile('out.tif'), 5))
 
         outfile = imgstack.TiffStacker._load_tiff(datafile('out.tif'))
         self.assertEqual([outfile[i].tolist() for i in range (0, len(outfile))],
-            [[[10.5, 102.5, 997.5], [49.5, 501, 4996]], [[10002.0, 19992.5, 30020.5], [10.0, 19.0, 30.5]]])
+            [[[10.5, 102.5, 997.5, 8912], [49.5, 501, 4996, 62.0]], [[10002.0, 19992.5, 30020.5, 1040.5], [10.0, 19.0, 30.5, 499]]])
         os.remove(datafile('out.tif'))
 
 if __name__ == '__main__':
