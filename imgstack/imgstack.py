@@ -65,9 +65,12 @@ class ImageStacker:
         self._data = numpy.ma.masked_array(
             numpy.stack(data, axis=0), numpy.ma.nomask)
 
+        # alpha transparency layer is used to generate a mask on the data:
+        # pixel with maximum opacity are not masked, all others are.
         if alpha and self._data.ndim == 4 and self._data.shape[-1] >= 4:
-            self._data.mask =\
-                numpy.repeat(numpy.logical_not(self._data[...,3]), 4)
+            self._data.mask = numpy.repeat(numpy.where(
+                self._data[...,3] >= ImageStacker.max_opacity(self._data.dtype),
+                False, True), 4)
             self._masked = numpy.ma.count_masked(self._data)
 
     def run(self):
@@ -129,6 +132,15 @@ class ImageStacker:
         # apply the mask on input data
         self._data.mask = numpy.ma.mask_or(self._data.mask, new_mask)
         self._clipped = numpy.ma.count_masked(self._data)
+
+    @staticmethod
+    def max_opacity(dtype):
+        if numpy.issubdtype(dtype, numpy.integer):
+            return numpy.iinfo(dtype).max
+        elif numpy.issubdtype(dtype, numpy.float):
+            return 1.0
+        else:
+            return 0
 
 class TiffStacker:
     """Stack TIFF images with similar size, producing a sigma clipped average

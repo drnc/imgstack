@@ -116,7 +116,7 @@ class TestImageStacker(unittest.TestCase):
         self.assertEqual(stacker.run().astype(numpy.uint16).tolist(),
             [[[10, 99, 999, 65535], [49, 500, 5001, 65535], [10012, 20015, 29952, 65535]], [[600, 500, 400, 65535], [16, 31, 41, 65535], [0, 0, 0, 0]]])
         self.assertEqual(stacker.loops_run(), 1)
-        self.assertEqual(stacker.clipped_points(), 18)
+        self.assertEqual(stacker.clipped_points(), 17)
 
     def test_4d_float_images(self):
         images = [imgstack.TiffStacker._load_tiff(datafile('4d_float_{}.tif'.format(i))) for i in range(1, 4)]
