@@ -319,6 +319,7 @@ class TiffStacker:
         loops_run = 0
 
         # while all rows have not been processed, stack them
+        outdata = []
         rbegin = 0
         while rbegin < shape[0]:
             rend = min(rbegin + self._rows, shape[0])
@@ -335,7 +336,7 @@ class TiffStacker:
             logger.info(
                 "stacking images. rows {} to {}...".format(rbegin, rend - 1))
 
-            self._outdata.append(stacker.run())
+            outdata.append(stacker.run())
 
             # update stacking stats
             clipped += stacker.clipped_points()
@@ -346,7 +347,7 @@ class TiffStacker:
         logger.info("{} loop(s) run. {}/{} points clipped".format(
             loops_run, clipped, numpy.product(shape) * len(inputfiles)))
 
-        return outfile.write(numpy.concatenate(self._outdata), dtype, compress)
+        return outfile.write(numpy.concatenate(outdata), dtype, compress)
 
 def parse_args():
     help_description =\
