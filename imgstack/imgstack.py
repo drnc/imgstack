@@ -17,7 +17,8 @@
 
 """Stack multiple TIFF files, producing a sigma clipped average image
 
-For command line usage run `python imgstack.py --help
+For command line usage, run:
+    python imgstack.py --help
 
 :Author:
     Guillaume Duranceau
@@ -30,6 +31,105 @@ import tifffile
 import os.path
 
 logger = logging.getLogger('imgstack')
+
+class TiffReader:
+    """Read image data from a TIFF file."""
+
+    def __init__(self, filename):
+        """Create the file reader object.
+
+        Parameters
+        ----------
+        filename : str
+            Path of the file
+        """
+        self._filename = filename
+
+    def name(self):
+        """Return the reader's file name"""
+        return self._filename
+
+    def is_valid(self):
+        """Check that this is a valid and readable file"""
+        if not os.path.isfile(self._filename):
+            logger.error("invalid file [{}]".format(self._filename))
+            return False
+
+        if not os.access(self._filename, os.R_OK):
+            logger.error(
+                "cannot read file [{}] (no permission)".format(self._filename))
+            return False
+
+        return True
+
+    def load(self):
+        """Load file image from the TIFF file as numpy array.
+
+        Returns
+        -------
+        data : numpy.ndarray
+            Image data content
+        """
+        logger.info("loading image [{}]".format(self._filename));
+        try:
+            data = tifffile.imread(self._filename, memmap=True)
+        except (OSError, IOError, ValueError) as err:
+            logger.error(
+                "couldn't load image [{}]: {}".format(self._filename, err))
+            return None
+        return data
+
+class TiffWriter:
+    """Write image data in a TIFF file."""
+
+    def __init__(self, filename):
+        """Create the file writer object.
+
+        Parameters
+        ----------
+        filename : str
+            Path of the file
+        """
+        self._filename = filename
+
+    def is_valid(self):
+        """Check that the file doesn't already exist and can be created"""
+        if os.path.exists(self._filename):
+            logger.error("file [{}] already exists".format(self._filename))
+            return False
+
+        try:
+            out = open(self._filename, 'a')
+        except Exception as err:
+            logger.error(
+                "cannot open file [{}]: {}".format(self._filename, err))
+            return False
+        out.close()
+        os.remove(self._filename)
+
+        return True
+
+    def write(self, data, datatype, compress = 0):
+        """Write image data in the TIFF file.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            Images data,
+        datatype : numpy.dtype
+            TIFF data type
+        compress : int
+            Zlib compression level for TIFF data written.
+        """
+        logger.info("writing image [{}]".format(self._filename));
+        data_conversion = data.astype(datatype)
+        try:
+            tifffile.imsave(self._filename, data_conversion, compress=compress)
+        except ValueError as err:
+            logger.error(
+                "couldn't write image [{}]: {}".format(self._filename, err))
+            return False
+        return True
 
 class ImageStacker:
     """Stack images with similar size, producing a sigma clipped average image.
@@ -175,8 +275,8 @@ class TiffStacker:
         Parameters
         ----------
         inputfiles : sequence
-            TIFF file names. This must contain at least 2 files.
-        outfile : str
+            TIFF file readers. This must contain at least 2 readers.
+        outfile : TiffWriter
             TIFF file where the stacked image is written.
         compress : int
             Zlib compression level for TIFF data written.
@@ -196,7 +296,7 @@ class TiffStacker:
         # load images one by one. interrupt in case of error
         images = []
         for inputfile in inputfiles:
-            image = TiffStacker._load_tiff(inputfile)
+            image = inputfile.load()
             if image is None:
                 return False
             if not shape:
@@ -205,12 +305,12 @@ class TiffStacker:
             elif shape != image.shape:
                 logger.error(
                     "image [{}] has a different shape than the previous ones"\
-                    .format(inputfile))
+                    .format(inputfile.name()))
                 return False
             elif dtype != image.dtype:
                 logger.error(
                     "image [{}] has a different type than the previous ones"\
-                    .format(inputfile))
+                    .format(inputfile.name()))
                 return False
             images.append(image)
 
@@ -246,59 +346,9 @@ class TiffStacker:
         logger.info("{} loop(s) run. {}/{} points clipped".format(
             loops_run, clipped, numpy.product(shape) * len(inputfiles)))
 
-        return TiffStacker._write_tiff(
-            numpy.concatenate(self._outdata), outfile, compress, dtype)
+        return outfile.write(numpy.concatenate(self._outdata), dtype, compress)
 
-    @staticmethod
-    def _load_tiff(filename):
-        logger.info("loading image [{}]".format(filename));
-        try:
-            data = tifffile.imread(filename, memmap=True)
-        except (OSError, IOError, ValueError) as err:
-            logger.error("couldn't load image [{}]: {}".format(filename, err))
-            return None
-        return data
-
-    @staticmethod
-    def _write_tiff(data, filename, compress, datatype):
-        logger.info("writing image [{}]".format(filename));
-        data_conversion = data.astype(datatype)
-        try:
-            tifffile.imsave(filename, data_conversion, compress=compress)
-        except ValueError as err:
-            logger.error(
-                "couldn't write output image [{}]: {}".format(filename, err))
-            return False
-        return True
-
-def check_args(args):
-    if len(args.input) < 2:
-        logger.error("only 1 input file provided")
-        return False
-
-    for f in args.input:
-        if not os.path.isfile(f):
-            logger.error("invalid file [{}]".format(f))
-            return False
-
-    if os.path.exists(args.output):
-        logger.error("output file [{}] already exists".format(args.output))
-        return False
-
-    # try creating the output to report error immediately in case of
-    # problem
-    try:
-        out = open(args.output, 'a')
-    except Exception as err:
-        logger.error(
-            "couldn't open output file [{}]: {}".format(args.output, err))
-        return False
-    out.close()
-    os.remove(args.output)
-
-    return True
-
-def main():
+def parse_args():
     help_description =\
         "Stack multiple TIFF files, producing a sigma clipped average image"
 
@@ -311,9 +361,6 @@ def main():
         "values 1.0, 2.0, 3.0 respectively exclude approximately "\
         "32 percent, 5 percent, and 0.3 percent of points for a normal "\
         "distribution of data (default=2.5)"
-    help_depth =\
-        "TIFF data point depth. Supported values are 8, 16 and 32 bits "\
-        "(32 bits is floating point). (default=16)"
     help_compress =\
         "zlib compression level for output file (default=0)"
     help_rows =\
@@ -329,7 +376,6 @@ def main():
     parser.add_argument('-l', '--loop', help=help_loop, action='store', type=int, default=1)
     parser.add_argument('-s', '--sigma', help=help_sigma, action='store', type=float, default=2.5)
     parser.add_argument('-c', '--compress', help=help_compress, action='store', type=int, default=0)
-    parser.add_argument('-d', '--depth', help=help_depth, action='store', type=int, default=16)
     parser.add_argument('-r', '--rows', help=help_rows, action='store', type=int, default=100)
     parser.add_argument('-a', '--no-alpha', help=help_no_alpha, action='store_true')
     parser.add_argument('-q', '--quiet', help='mute message output on stdout', action='store_true')
@@ -338,11 +384,26 @@ def main():
     if not args.quiet:
         logging.basicConfig(level=logging.INFO)
 
-    if not check_args(args):
+    args.inputfiles = [TiffReader(f) for f in args.input]
+    args.outputfile = TiffWriter(args.output)
+
+    if len(args.inputfiles) < 2:
+        logger.error("only 1 input file provided")
+        return None
+
+    for f in args.inputfiles + [args.outputfile]:
+        if not f.is_valid():
+            return None
+
+    return args
+
+def main():
+    args = parse_args()
+    if not args:
         return 1
 
     stacker = TiffStacker(args.loop, args.sigma, args.rows, not args.no_alpha)
-    if stacker.run(args.input, args.output, args.compress):
+    if stacker.run(args.inputfiles, args.outputfile, args.compress):
         return 0
     return 1
 
