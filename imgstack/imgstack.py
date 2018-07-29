@@ -72,7 +72,7 @@ class TiffReader:
         """
         logger.info("loading image [{}]".format(self._filename));
         try:
-            data = tifffile.imread(self._filename, memmap=True)
+            data = tifffile.imread(self._filename, out='memmap')
         except (OSError, IOError, ValueError) as err:
             logger.error(
                 "couldn't load image [{}]: {}".format(self._filename, err))
