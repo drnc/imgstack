@@ -32,7 +32,7 @@ class TestTiffWriter(unittest.TestCase):
         self.assertFalse(imgstack.TiffWriter(datafile('unexisting-dir/out.tif')).is_valid())
 
     def test_write(self):
-        data = imgstack.TiffReader(datafile('image_1.tif')).load();
+        data = imgstack.TiffReader(datafile('image_1.tif')).load()
         out_filename = datafile('out.tif')
         out = imgstack.TiffWriter(out_filename)
         out.write(data, numpy.uint16)
@@ -42,7 +42,7 @@ class TestTiffWriter(unittest.TestCase):
         os.remove(out_filename)
 
     def test_write_compressed(self):
-        data = imgstack.TiffReader(datafile('image_1.tif')).load();
+        data = imgstack.TiffReader(datafile('image_1.tif')).load()
         out_filename = datafile('out.tif')
         out = imgstack.TiffWriter(out_filename)
         out.write(data, numpy.uint16, 5)

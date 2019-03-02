@@ -70,7 +70,7 @@ class TiffReader:
         data : numpy.ndarray
             Image data content
         """
-        logger.info("loading image [{}]".format(self._filename));
+        logger.info("loading image [{}]".format(self._filename))
         try:
             data = tifffile.imread(self._filename, out='memmap')
         except (OSError, IOError, ValueError) as err:
@@ -121,7 +121,7 @@ class TiffWriter:
         compress : int
             Zlib compression level for TIFF data written.
         """
-        logger.info("writing image [{}]".format(self._filename));
+        logger.info("writing image [{}]".format(self._filename))
         data_conversion = data.astype(datatype)
         try:
             tifffile.imsave(self._filename, data_conversion, compress=compress)
@@ -288,7 +288,7 @@ class TiffStacker:
             False in case an error occurred.
         """
         if len(inputfiles) < 2:
-            return False;
+            return False
 
         shape = None
         dtype = None
