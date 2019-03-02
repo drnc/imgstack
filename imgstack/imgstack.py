@@ -124,7 +124,7 @@ class TiffWriter:
         logger.info("writing image [{}]".format(self._filename))
         data_conversion = data.astype(datatype)
         try:
-            tifffile.imsave(self._filename, data_conversion, compress=compress)
+            tifffile.imwrite(self._filename, data_conversion, compress=compress)
         except ValueError as err:
             logger.error(
                 "couldn't write image [{}]: {}".format(self._filename, err))
