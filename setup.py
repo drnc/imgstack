@@ -14,7 +14,7 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 3',
     ],
-    keywords='stack TIFF sigma clipper average',
+    keywords='stack TIFF sigma clipped average',
     py_modules=['imgstack/imgstack'],
     install_requires=['numpy>=1.11', 'tifffile>=2018.11.6'],
     python_requires='>=3',
