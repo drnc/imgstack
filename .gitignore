@@ -1,5 +1,4 @@
-**/__pycache__/
-build/
-dist/
-imgstack.egg-info/
-
+**/__pycache__
+/build
+/dist
+/imgstack.egg-info
