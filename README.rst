@@ -72,6 +72,11 @@ To **limit memory consumption**,
 but this can lowered
 to accomodate a user environment with low memory constraints).
 
+*imgstack* can deal with transparency layer on images.
+If an image includes an alpha transparency channel,
+only points with maximum opacity
+are considered during the stacking operation.
+
 How to run
 ==========
 
