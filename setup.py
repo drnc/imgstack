@@ -16,7 +16,8 @@ setup(
     ],
     keywords='stack TIFF sigma clipped average',
     py_modules=['imgstack/imgstack'],
-    install_requires=['numpy>=1.14', 'tifffile>=2018.11.6'],
+    install_requires=[
+        'numpy>=1.14', 'tifffile>=2018.11.6', 'imagecodecs>=2018.11.6'],
     python_requires='>=3',
     entry_points={
         'console_scripts': [ 'imgstack=imgstack.imgstack:main' ],
