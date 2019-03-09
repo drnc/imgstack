@@ -35,6 +35,10 @@ logger = logging.getLogger('imgstack')
 class TiffReader:
     """Read image data from a TIFF file."""
 
+    # Extract the following tags from the image, if present.
+    _EXTRACT_TAGS = [
+        'DateTime', 'InterColorProfile', 'Make', 'Model', 'Orientation']
+
     def __init__(self, filename):
         """Create the file reader object.
 
@@ -44,6 +48,7 @@ class TiffReader:
             Path of the file
         """
         self._filename = filename
+        self._tags = []
 
     def name(self):
         """Return the reader's file name"""
@@ -72,12 +77,27 @@ class TiffReader:
         """
         logger.info("loading image [{}]".format(self._filename))
         try:
-            data = tifffile.imread(self._filename, out='memmap')
+            with tifffile.TiffFile(self._filename) as tif:
+                data = tif.asarray(out='memmap')
+                self._extract_tags(tif.pages[0].tags)
         except (OSError, IOError, ValueError) as err:
             logger.error(
                 "couldn't load image [{}]: {}".format(self._filename, err))
             return None
         return data
+
+    def tags(self):
+        """Return tags extracted from the input image."""
+        return self._tags
+
+    def _extract_tags(self, tags):
+        for tagname in TiffReader._EXTRACT_TAGS:
+            if tagname in tags:
+                tag = tags[tagname]
+                if tag.dtype.startswith('1'):
+                    tag.dtype = tag.dtype[1:]
+                self._tags.append(
+                    (tag.code, tag.dtype, tag.count, tag.value, True))
 
 class TiffWriter:
     """Write image data in a TIFF file."""
@@ -109,22 +129,26 @@ class TiffWriter:
 
         return True
 
-    def write(self, data, datatype, compress = 0):
+    def write(self, data, datatype, compress=0, tags=[]):
         """Write image data in the TIFF file.
 
         Parameters
         ----------
         data : numpy.ndarray
-            Images data,
+            Image data,
         datatype : numpy.dtype
             TIFF data type
         compress : int
             Zlib compression level for TIFF data written.
+        tags : sequence of tuple
+            Extra tags to write in image, as defined in tifffile.TiffWriter.save
         """
         logger.info("writing image [{}]".format(self._filename))
         data_conversion = data.astype(datatype)
         try:
-            tifffile.imwrite(self._filename, data_conversion, compress=compress)
+            tifffile.imwrite(
+                self._filename, data_conversion, compress=compress,
+                extratags=tags)
         except ValueError as err:
             logger.error(
                 "couldn't write image [{}]: {}".format(self._filename, err))
@@ -247,7 +271,7 @@ class TiffStacker:
     image.
     """
 
-    def __init__(self, loop, sigma, rows, alpha = True):
+    def __init__(self, loop, sigma, rows, alpha=True):
         """Create the stacker object.
 
         Parameters
@@ -269,7 +293,7 @@ class TiffStacker:
         self._alpha = alpha
         self._outdata = []
 
-    def run(self, inputfiles, outfile, compress = 0):
+    def run(self, inputfiles, outfile, compress=0):
         """Compute the stacked image from TIFF files and write it.
 
         Parameters
@@ -302,6 +326,7 @@ class TiffStacker:
             if not shape:
                 shape = image.shape
                 dtype = image.dtype
+                tags = inputfile.tags()
             elif shape != image.shape:
                 logger.error(
                     "image [{}] has a different shape than the previous ones"\
@@ -347,7 +372,7 @@ class TiffStacker:
         logger.info("{} loop(s) run. {}/{} points clipped".format(
             loops_run, clipped, numpy.product(shape) * len(inputfiles)))
 
-        return outfile.write(numpy.concatenate(outdata), dtype, compress)
+        return outfile.write(numpy.concatenate(outdata), dtype, compress, tags)
 
 def parse_args():
     help_description =\

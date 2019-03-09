@@ -77,6 +77,10 @@ If an image includes an alpha transparency channel,
 only points with maximum opacity
 are considered during the stacking operation.
 
+If present in the first input image,
+*imgstack* copies the embedded color profile
+in the output image.
+
 How to run
 ==========
 
